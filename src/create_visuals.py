@@ -42,14 +42,16 @@ def require_plotting_libraries():
     return plt, sns
 
 
-def save_figure(plt, fig, output_path: Path) -> None:
+def save_figure(plt, fig, output_path: Path, *, left_margin: float | None = None) -> None:
     """Save a compact, high-resolution figure suitable for GitHub display."""
     plt.tight_layout()
+    if left_margin is not None:
+        fig.subplots_adjust(left=max(fig.subplotpars.left, left_margin))
     fig.savefig(
         output_path,
         dpi=200,
         bbox_inches="tight",
-        pad_inches=0.2,
+        pad_inches=0.25,
         facecolor="white",
     )
     plt.close(fig)
@@ -126,10 +128,14 @@ def plot_routing_distribution(rows: list[dict[str, Any]]) -> None:
     counts = Counter(row.get("target_action", "Unknown") for row in rows)
     actions = [item[0] for item in counts.most_common()]
     values = [counts[action] for action in actions]
-    display_actions = [textwrap.fill(action, width=32) for action in actions]
+    short_labels = {
+        "Human review required due to insufficient information": "Review: insufficient info",
+        "Human review required due to detected risk signal": "Review: risk signal",
+    }
+    display_actions = [short_labels.get(action, textwrap.fill(action, width=28)) for action in actions]
 
-    figure_height = max(4.6, 0.85 * len(actions) + 1.8)
-    fig, ax = plt.subplots(figsize=(10.5, figure_height))
+    figure_height = max(4.8, 0.78 * len(actions) + 1.8)
+    fig, ax = plt.subplots(figsize=(9.8, figure_height))
     sns.barplot(x=values, y=display_actions, color="#2D789C", ax=ax)
     ax.set_xlabel("Messages", fontsize=12)
     ax.set_ylabel("")
@@ -140,7 +146,7 @@ def plot_routing_distribution(rows: list[dict[str, Any]]) -> None:
     for index, value in enumerate(values):
         ax.text(value + max_value * 0.02, index, str(value), va="center", fontsize=11, fontweight="bold")
     sns.despine(ax=ax, left=True, bottom=False)
-    save_figure(plt, fig, VISUALS_DIR / "routing_distribution.png")
+    save_figure(plt, fig, VISUALS_DIR / "routing_distribution.png", left_margin=0.25)
 
 
 def count_risk_factors(rows: list[dict[str, Any]], key: str) -> Counter:
