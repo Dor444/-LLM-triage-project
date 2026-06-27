@@ -1,0 +1,6 @@
+{"task_id": "sample-001", "text": "Hi, I need a refill for my blood pressure medication. I have three pills left and feel okay.", "labels": {"urgency_level": "Green", "risk_factors": ["None"], "insufficient_information": false}}
+{"task_id": "sample-002", "text": "My incision is more red today and there is some yellow drainage after surgery last week.", "labels": {"urgency_level": "Yellow", "risk_factors": ["Severe_Infection"], "insufficient_information": false}}
+{"task_id": "sample-003", "text": "I have crushing chest pressure and I am short of breath right now.", "labels": {"urgency_level": "Red", "risk_factors": ["Chest_Pain_or_Pressure", "Respiratory_Distress"], "insufficient_information": false}}
+{"task_id": "sample-004", "text": "It hurts again, should I worry?", "labels": {"urgency_level": "Yellow", "risk_factors": ["Severe_Pain"], "insufficient_information": true}}
+{"task_id": "sample-005", "text": "Can you send my lab results from last month to my specialist?", "labels": {"urgency_level": "Green", "risk_factors": ["None"], "insufficient_information": false}}
+{"task_id": "sample-006", "text": "My child fell yesterday and now has a swollen ankle and a lot of pain.", "labels": {"urgency_level": "Yellow", "risk_factors": ["Trauma_or_Injury", "Severe_Pain"], "insufficient_information": false}}

@@ -1,0 +1,11 @@
+accelerate>=0.29.0
+datasets>=2.19.0
+jupyter>=1.0.0
+matplotlib
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.4.0
+seaborn
+torch>=2.2.0
+tqdm>=4.66.0
+transformers>=4.41.0
