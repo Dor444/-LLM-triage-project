@@ -58,7 +58,9 @@ workflow is organized into command-line scripts under `src/`.
 | Insufficient-information accuracy | **0.86** |
 | Human review rate | **0.72** |
 
-![Unified pipeline results](visuals/model_results_summary.png)
+<p align="center">
+  <img src="visuals/model_results_summary.png" alt="Unified pipeline results" width="760">
+</p>
 
 ## Project Motivation
 
@@ -287,17 +289,37 @@ Detailed saved results:
 All figures are generated from saved results. Running the visualization script
 does not rerun model inference.
 
-| Results overview | Risk-threshold selection |
-|---|---|
-| ![Results overview](visuals/model_results_summary.png) | ![Risk threshold tuning](visuals/risk_threshold_tuning_curve.png) |
+### Results Overview
 
-| Urgency errors | Insufficient-information errors |
-|---|---|
-| ![Urgency confusion matrix](visuals/urgency_confusion_matrix.png) | ![Insufficient-information confusion matrix](visuals/insufficient_confusion_matrix.png) |
+<p align="center">
+  <img src="visuals/model_results_summary.png" alt="Results overview" width="760">
+</p>
 
-| Routing behavior | Risk-factor counts |
-|---|---|
-| ![Routing distribution](visuals/routing_distribution.png) | ![Risk-factor counts](visuals/risk_factor_true_vs_predicted_counts.png) |
+### Threshold Selection
+
+<p align="center">
+  <img src="visuals/risk_threshold_tuning_curve.png" alt="Risk-threshold selection" width="620">
+</p>
+
+### Classification Errors
+
+<p align="center">
+  <img src="visuals/urgency_confusion_matrix.png" alt="Urgency confusion matrix" width="560">
+</p>
+
+<p align="center">
+  <img src="visuals/insufficient_confusion_matrix.png" alt="Insufficient-information confusion matrix" width="560">
+</p>
+
+### Routing and Risk-Factor Behavior
+
+<p align="center">
+  <img src="visuals/routing_distribution.png" alt="Routing distribution" width="760">
+</p>
+
+<p align="center">
+  <img src="visuals/risk_factor_true_vs_predicted_counts.png" alt="Risk-factor true versus predicted counts" width="760">
+</p>
 
 Direct links:
 
