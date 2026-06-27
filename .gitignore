@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Environments
+.env
+.venv/
+venv/
+
+# Model weights and training checkpoints
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+checkpoint-*/
+models/*
+!models/README.md
+
+# Full generated datasets and large experiment outputs
+final_synthetic_dataset_local_llm.jsonl
+generation_errors_local_llm.jsonl
+data/raw/
+data/processed/
+data/generated/
+data/splits/
+
+# Logs and caches
+*.log
+visuals/.mplconfig/
+wandb/
+runs/
+mlruns/
+
+# OS files
+.DS_Store
+Thumbs.db

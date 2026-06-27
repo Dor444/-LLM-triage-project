@@ -1,0 +1,24 @@
+{
+  "source_note": "Reconstructed from the project summary and notebook pipeline configuration. A standalone risk_factor_threshold_tuning_results.json file was not found in Downloads.",
+  "task": "risk_factor_multilabel_classification",
+  "model": "DistilBERT",
+  "risk_factor_labels": [
+    "Chest_Pain_or_Pressure",
+    "Respiratory_Distress",
+    "Acute_Neurological",
+    "Severe_Infection",
+    "Anaphylaxis_or_Allergy",
+    "Uncontrolled_Bleeding",
+    "Severe_Pain",
+    "Trauma_or_Injury",
+    "Medication_Adverse_Reaction",
+    "None"
+  ],
+  "best_threshold": 0.3,
+  "best_metrics": {
+    "micro_f1": 0.8792,
+    "macro_f1": 0.7775
+  },
+  "notebook_pipeline_threshold": 0.3,
+  "all_results": []
+}

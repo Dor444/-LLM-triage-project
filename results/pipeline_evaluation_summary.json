@@ -1,0 +1,8 @@
+{
+  "num_examples": 50,
+  "urgency_accuracy": 0.76,
+  "urgency_macro_f1": 0.7538292736449419,
+  "risk_exact_match_accuracy": 0.92,
+  "insufficient_accuracy": 0.86,
+  "human_review_rate": 0.72
+}
