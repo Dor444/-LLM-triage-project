@@ -1,9 +1,14 @@
 # Models
 
-Trained model artifacts should be written here locally, for example:
+This directory is a local destination for trained model artifacts. Expected
+output folders include:
 
 - `models/urgency_distilbert/`
 - `models/risk_factor_distilbert/`
 - `models/insufficient_info_distilbert/`
 
-Model weights and checkpoints are ignored by Git because they are large and can be regenerated from the training scripts.
+Large artifacts are intentionally excluded from Git, including model weights,
+`.safetensors`, `.bin`, `.pt`, `.pth`, `.ckpt`, and `checkpoint-*` directories.
+They can be regenerated with the command-line training scripts under `src/`.
+
+Only this README is committed from the `models/` directory.

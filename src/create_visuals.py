@@ -13,6 +13,7 @@ from typing import Any
 
 from config import (
     PIPELINE_OUTPUTS_PATH,
+    PIPELINE_SUMMARY_PATH,
     RISK_FACTOR_LABELS,
     THRESHOLD_RESULTS_PATH,
     URGENCY_LABELS,
@@ -205,6 +206,44 @@ def plot_risk_threshold_tuning_curve() -> None:
     plt.close(fig)
 
 
+def plot_model_results_summary() -> None:
+    """Create a compact overview from the saved unified-pipeline metrics."""
+    plt, sns = require_plotting_libraries()
+    summary = read_json(PIPELINE_SUMMARY_PATH)
+    labels = [
+        "Urgency\naccuracy",
+        "Risk exact\nmatch",
+        "Insufficient\naccuracy",
+        "Human review\nrate",
+    ]
+    values = [
+        summary["urgency_accuracy"],
+        summary["risk_exact_match_accuracy"],
+        summary["insufficient_accuracy"],
+        summary["human_review_rate"],
+    ]
+    colors = ["#2D789C", "#2E9F62", "#2F9FA0", "#D9A11E"]
+
+    fig, ax = plt.subplots(figsize=(9, 5.2))
+    bars = sns.barplot(x=labels, y=values, hue=labels, palette=colors, legend=False, ax=ax)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Score")
+    ax.set_xlabel("")
+    ax.set_title("Unified Pipeline Results on 50 Saved Test Examples")
+    for bar, value in zip(bars.patches, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value + 0.025,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+        )
+    fig.tight_layout()
+    fig.savefig(VISUALS_DIR / "model_results_summary.png", dpi=180)
+    plt.close(fig)
+
+
 def main() -> None:
     """Generate all project visuals from existing saved results."""
     VISUALS_DIR.mkdir(parents=True, exist_ok=True)
@@ -215,6 +254,7 @@ def main() -> None:
     plot_routing_distribution(rows)
     plot_risk_factor_true_vs_predicted_counts(rows)
     plot_risk_threshold_tuning_curve()
+    plot_model_results_summary()
 
     print(f"Created visualizations in {VISUALS_DIR}")
 
