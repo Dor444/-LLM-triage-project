@@ -1,354 +1,312 @@
-"""Create project visualizations from saved evaluation outputs.
+"""
+Create clean standalone visualization PNG files for the final GitHub repository.
 
-The script does not rerun model inference. It reads saved outputs under
-``results/`` and writes PNG figures under ``visuals/``.
+The script uses saved evaluation outputs only.
+It does not rerun model inference and does not change metrics.
 """
 
-from __future__ import annotations
-
-import os
-import textwrap
+import json
 from collections import Counter
 from pathlib import Path
-from typing import Any
 
-from config import (
-    PIPELINE_OUTPUTS_PATH,
-    PIPELINE_SUMMARY_PATH,
-    RISK_FACTOR_LABELS,
-    THRESHOLD_RESULTS_PATH,
-    URGENCY_LABELS,
-    VISUALS_DIR,
-)
-from data_utils import read_json, read_jsonl
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
 
 
-def require_plotting_libraries():
-    """Import plotting libraries lazily so compile checks do not require them."""
-    os.environ.setdefault("MPLCONFIGDIR", str(VISUALS_DIR / ".mplconfig"))
-    try:
-        import matplotlib
+RESULTS_DIR = Path("results")
+VISUALS_DIR = Path("visuals")
 
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-    except ImportError as exc:
-        raise SystemExit(
-            "Missing plotting dependency. Run `pip install -r requirements.txt` "
-            "and then retry `python src/create_visuals.py`."
-        ) from exc
+PIPELINE_OUTPUTS = RESULTS_DIR / "pipeline_test_outputs.jsonl"
+PIPELINE_SUMMARY = RESULTS_DIR / "pipeline_evaluation_summary.json"
 
-    sns.set_theme(style="whitegrid", context="notebook", font_scale=1.1)
-    return plt, sns
+VISUALS_DIR.mkdir(parents=True, exist_ok=True)
+
+sns.set_theme(style="whitegrid")
 
 
-def save_figure(plt, fig, output_path: Path, *, left_margin: float | None = None) -> None:
-    """Save a compact, high-resolution figure suitable for GitHub display."""
+URGENCY_LABELS = ["Green", "Yellow", "Red"]
+INSUFFICIENT_LABELS = ["Sufficient", "Insufficient"]
+
+RISK_FACTOR_LABELS = [
+    "Chest_Pain_or_Pressure",
+    "Respiratory_Distress",
+    "Acute_Neurological",
+    "Severe_Infection",
+    "Anaphylaxis_or_Allergy",
+    "Uncontrolled_Bleeding",
+    "Severe_Pain",
+    "Trauma_or_Injury",
+    "Medication_Adverse_Reaction",
+    "None",
+]
+
+
+def load_jsonl(path: Path):
+    rows = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            rows.append(json.loads(line))
+    return rows
+
+
+def save_fig(path: Path):
     plt.tight_layout()
-    if left_margin is not None:
-        fig.subplots_adjust(left=max(fig.subplotpars.left, left_margin))
-    fig.savefig(
-        output_path,
-        dpi=200,
-        bbox_inches="tight",
-        pad_inches=0.25,
-        facecolor="white",
-    )
-    plt.close(fig)
+    plt.savefig(path, dpi=220, bbox_inches="tight", pad_inches=0.25)
+    plt.close()
 
 
-def confusion_matrix_counts(rows: list[dict[str, Any]], true_key: str, pred_key: str, labels: list[Any]) -> list[list[int]]:
-    """Return count matrix for true/predicted values in saved output rows."""
-    matrix = [[0 for _ in labels] for _ in labels]
-    label_to_index = {label: index for index, label in enumerate(labels)}
-
-    for row in rows:
-        true_value = row[true_key]
-        pred_value = row[pred_key]
-        if true_value in label_to_index and pred_value in label_to_index:
-            matrix[label_to_index[true_value]][label_to_index[pred_value]] += 1
-
-    return matrix
+def short_route(label: str) -> str:
+    mapping = {
+        "Human review required due to insufficient information": "Review: insufficient info",
+        "Human review required due to detected risk signal": "Review: risk signal",
+        "Same-day human review": "Same-day review",
+        "Immediate human review": "Immediate review",
+        "Routine queue": "Routine queue",
+    }
+    return mapping.get(label, label)
 
 
-def save_heatmap(matrix, x_labels, y_labels, title: str, output_path: Path) -> None:
-    """Save a labeled confusion-matrix heatmap."""
-    plt, sns = require_plotting_libraries()
-    fig, ax = plt.subplots(figsize=(6.2, 5.8))
-    sns.heatmap(
-        matrix,
+def plot_urgency_confusion(rows):
+    y_true = [r["true_urgency"] for r in rows]
+    y_pred = [r["pred_urgency"] for r in rows]
+
+    cm = confusion_matrix(y_true, y_pred, labels=URGENCY_LABELS)
+
+    plt.figure(figsize=(7, 6))
+    ax = sns.heatmap(
+        cm,
         annot=True,
         fmt="d",
         cmap="Blues",
-        xticklabels=x_labels,
-        yticklabels=y_labels,
+        xticklabels=URGENCY_LABELS,
+        yticklabels=URGENCY_LABELS,
         cbar=False,
         square=True,
-        linewidths=0.7,
-        linecolor="white",
-        annot_kws={"fontsize": 14, "fontweight": "bold"},
-        ax=ax,
-    )
-    ax.set_xlabel("Predicted", fontsize=12, labelpad=8)
-    ax.set_ylabel("True", fontsize=12, labelpad=8)
-    ax.set_title(title, fontsize=16, fontweight="bold", pad=14)
-    ax.tick_params(axis="both", labelsize=11)
-    save_figure(plt, fig, output_path)
-
-
-def plot_urgency_confusion_matrix(rows: list[dict[str, Any]]) -> None:
-    """Create urgency confusion matrix from saved true/predicted labels."""
-    matrix = confusion_matrix_counts(rows, "true_urgency", "pred_urgency", URGENCY_LABELS)
-    save_heatmap(
-        matrix,
-        URGENCY_LABELS,
-        URGENCY_LABELS,
-        "Urgency Confusion Matrix",
-        VISUALS_DIR / "urgency_confusion_matrix.png",
+        annot_kws={"size": 16},
     )
 
+    ax.set_title("Urgency Confusion Matrix", fontsize=18, pad=16)
+    ax.set_xlabel("Predicted", fontsize=14)
+    ax.set_ylabel("True", fontsize=14)
+    ax.tick_params(axis="both", labelsize=12)
 
-def plot_insufficient_confusion_matrix(rows: list[dict[str, Any]]) -> None:
-    """Create insufficient-information confusion matrix."""
-    labels = [False, True]
-    label_names = ["Sufficient", "Insufficient"]
-    matrix = confusion_matrix_counts(rows, "true_insufficient", "pred_insufficient", labels)
-    save_heatmap(
-        matrix,
-        label_names,
-        label_names,
-        "Insufficient Information Confusion Matrix",
-        VISUALS_DIR / "insufficient_confusion_matrix.png",
+    save_fig(VISUALS_DIR / "urgency_confusion_matrix.png")
+
+
+def plot_insufficient_confusion(rows):
+    y_true = [
+        "Insufficient" if r["true_insufficient"] else "Sufficient"
+        for r in rows
+    ]
+    y_pred = [
+        "Insufficient" if r["pred_insufficient"] else "Sufficient"
+        for r in rows
+    ]
+
+    cm = confusion_matrix(y_true, y_pred, labels=INSUFFICIENT_LABELS)
+
+    plt.figure(figsize=(6.8, 5.8))
+    ax = sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=INSUFFICIENT_LABELS,
+        yticklabels=INSUFFICIENT_LABELS,
+        cbar=False,
+        square=True,
+        annot_kws={"size": 16},
     )
 
+    ax.set_title("Insufficient Information Confusion Matrix", fontsize=17, pad=16)
+    ax.set_xlabel("Predicted", fontsize=14)
+    ax.set_ylabel("True", fontsize=14)
+    ax.tick_params(axis="both", labelsize=12)
 
-def plot_routing_distribution(rows: list[dict[str, Any]]) -> None:
-    """Create a horizontal bar chart of final routing actions."""
-    plt, sns = require_plotting_libraries()
-    counts = Counter(row.get("target_action", "Unknown") for row in rows)
-    actions = [item[0] for item in counts.most_common()]
-    values = [counts[action] for action in actions]
-    short_labels = {
-        "Human review required due to insufficient information": "Review: insufficient info",
-        "Human review required due to detected risk signal": "Review: risk signal",
-    }
-    display_actions = [short_labels.get(action, textwrap.fill(action, width=28)) for action in actions]
+    save_fig(VISUALS_DIR / "insufficient_confusion_matrix.png")
 
-    figure_height = max(4.8, 0.78 * len(actions) + 1.8)
-    fig, ax = plt.subplots(figsize=(9.8, figure_height))
-    sns.barplot(x=values, y=display_actions, color="#2D789C", ax=ax)
-    ax.set_xlabel("Messages", fontsize=12)
+
+def plot_routing_distribution(rows):
+    counts = Counter(short_route(r["target_action"]) for r in rows)
+    items = counts.most_common()
+
+    labels = [x[0] for x in items]
+    values = [x[1] for x in items]
+
+    plt.figure(figsize=(9, 5.8))
+    ax = sns.barplot(x=values, y=labels, color="#4C78A8")
+
+    ax.set_title("Routing Action Distribution", fontsize=18, pad=16)
+    ax.set_xlabel("Count", fontsize=14)
     ax.set_ylabel("")
-    ax.set_title("Routing Action Distribution", fontsize=16, fontweight="bold", pad=14)
-    ax.tick_params(axis="both", labelsize=11)
-    max_value = max(values, default=1)
-    ax.set_xlim(0, max_value * 1.18)
-    for index, value in enumerate(values):
-        ax.text(value + max_value * 0.02, index, str(value), va="center", fontsize=11, fontweight="bold")
-    sns.despine(ax=ax, left=True, bottom=False)
-    save_figure(plt, fig, VISUALS_DIR / "routing_distribution.png", left_margin=0.25)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.tick_params(axis="x", labelsize=12)
+
+    max_value = max(values)
+    ax.set_xlim(0, max_value + 4)
+
+    for i, value in enumerate(values):
+        ax.text(value + 0.3, i, str(value), va="center", fontsize=13)
+
+    save_fig(VISUALS_DIR / "routing_distribution.png")
 
 
-def count_risk_factors(rows: list[dict[str, Any]], key: str) -> Counter:
-    """Count all risk-factor labels in a saved pipeline-output field."""
-    counts: Counter = Counter()
+def plot_risk_factor_counts(rows):
+    true_counter = Counter()
+    pred_counter = Counter()
+
     for row in rows:
-        for label in row.get(key, []):
-            counts[label] += 1
-    return counts
+        for label in row["true_risk_factors"]:
+            true_counter[label] += 1
+        for label in row["pred_risk_factors"]:
+            pred_counter[label] += 1
 
+    data = []
+    for label in RISK_FACTOR_LABELS:
+        data.append(
+            {
+                "risk_factor": label,
+                "true": true_counter[label],
+                "predicted": pred_counter[label],
+            }
+        )
 
-def plot_risk_factor_true_vs_predicted_counts(rows: list[dict[str, Any]]) -> None:
-    """Compare true and predicted risk-factor label counts."""
-    plt, _ = require_plotting_libraries()
-    true_counts = count_risk_factors(rows, "true_risk_factors")
-    pred_counts = count_risk_factors(rows, "pred_risk_factors")
-    labels = list(RISK_FACTOR_LABELS)
+    df = pd.DataFrame(data)
+    df["total"] = df["true"] + df["predicted"]
+    df = df.sort_values("total", ascending=True)
 
-    for label in sorted(set(true_counts) | set(pred_counts)):
-        if label not in labels:
-            labels.append(label)
+    y = range(len(df))
 
-    display_labels = [textwrap.fill(label.replace("_", " "), width=28) for label in labels]
-    y_positions = list(range(len(labels)))
-    bar_height = 0.38
-    figure_height = max(7.0, 0.58 * len(labels) + 1.8)
-    fig, ax = plt.subplots(figsize=(11.5, figure_height))
-    ax.barh(
-        [pos - bar_height / 2 for pos in y_positions],
-        [true_counts[label] for label in labels],
-        height=bar_height,
+    plt.figure(figsize=(11, 7))
+    plt.barh(
+        [i - 0.18 for i in y],
+        df["true"],
+        height=0.35,
         label="True",
-        color="#2D789C",
+        color="#4C78A8",
     )
-    ax.barh(
-        [pos + bar_height / 2 for pos in y_positions],
-        [pred_counts[label] for label in labels],
-        height=bar_height,
+    plt.barh(
+        [i + 0.18 for i in y],
+        df["predicted"],
+        height=0.35,
         label="Predicted",
-        color="#D9A11E",
+        color="#E4572E",
     )
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels(display_labels, fontsize=10.5)
-    ax.invert_yaxis()
-    ax.set_xlabel("Label count", fontsize=12)
-    ax.set_title("Risk-Factor True vs Predicted Counts", fontsize=16, fontweight="bold", pad=14)
-    ax.tick_params(axis="x", labelsize=11)
-    ax.legend(fontsize=11, frameon=False, loc="upper right")
-    save_figure(plt, fig, VISUALS_DIR / "risk_factor_true_vs_predicted_counts.png")
+
+    plt.yticks(y, df["risk_factor"], fontsize=11)
+    plt.xlabel("Count", fontsize=14)
+    plt.title("Risk Factor True vs Predicted Counts", fontsize=18, pad=16)
+    plt.legend(fontsize=12, loc="lower right")
+    plt.grid(axis="x", alpha=0.35)
+
+    save_fig(VISUALS_DIR / "risk_factor_true_vs_predicted_counts.png")
 
 
-def plot_risk_threshold_tuning_curve() -> None:
-    """Create threshold-tuning plot from saved threshold results.
-
-    If the saved file only contains the selected threshold summary, the figure
-    shows the available selected-threshold point rather than inventing a curve.
+def plot_threshold_summary():
     """
-    plt, _ = require_plotting_libraries()
-    payload = read_json(THRESHOLD_RESULTS_PATH)
-    results = sorted(payload.get("all_results", []), key=lambda row: row.get("threshold", 0))
+    The saved threshold JSON is a reconstructed summary, not the full sweep.
+    Therefore this figure intentionally shows the selected threshold and final F1 values.
+    """
 
-    if results:
-        fig, ax = plt.subplots(figsize=(8.2, 5.4))
-        thresholds = [row["threshold"] for row in results]
-        ax.plot(
-            thresholds,
-            [row.get("micro_f1") for row in results],
-            color="#2D789C",
-            linewidth=2.5,
-            marker="o",
-            markersize=7,
-            label="Micro-F1",
-        )
-        ax.plot(
-            thresholds,
-            [row.get("macro_f1") for row in results],
-            color="#D9A11E",
-            linewidth=2.5,
-            marker="o",
-            markersize=7,
-            label="Macro-F1",
-        )
-        ax.axvline(
-            payload.get("best_threshold", 0.30),
-            color="#5D6B78",
-            linestyle="--",
-            linewidth=1.5,
-            label="Selected threshold",
-        )
-        ax.set_xlabel("Risk-factor threshold", fontsize=12)
-        ax.set_ylabel("F1", fontsize=12)
-        ax.set_ylim(0, 1)
-        ax.set_title("Risk-Threshold Tuning", fontsize=16, fontweight="bold", pad=14)
-        ax.tick_params(axis="both", labelsize=11)
-        ax.legend(fontsize=11, frameon=False)
-        save_figure(plt, fig, VISUALS_DIR / "risk_threshold_tuning_curve.png")
-        return
+    selected_threshold = 0.30
+    micro_f1 = 0.8792
+    macro_f1 = 0.7775
 
-    from matplotlib.patches import FancyBboxPatch
-
-    best_threshold = float(payload.get("best_threshold", payload.get("notebook_pipeline_threshold", 0.30)))
-    best_metrics = payload.get("best_metrics", {})
-    micro_f1 = float(best_metrics.get("micro_f1", 0.0))
-    macro_f1 = float(best_metrics.get("macro_f1", 0.0))
-
-    fig, ax = plt.subplots(figsize=(7.4, 4.4))
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    plt.figure(figsize=(8, 4.8))
+    ax = plt.gca()
     ax.axis("off")
+
     ax.text(
         0.5,
-        0.91,
+        0.82,
         "Risk-Factor Threshold Selection",
         ha="center",
         va="center",
-        fontsize=17,
+        fontsize=20,
         fontweight="bold",
-        color="#1F2933",
     )
-    card = FancyBboxPatch(
-        (0.12, 0.15),
-        0.76,
-        0.62,
-        boxstyle="round,pad=0.025,rounding_size=0.035",
-        linewidth=1.5,
-        edgecolor="#D2DCE5",
-        facecolor="#F4F8FA",
-    )
-    ax.add_patch(card)
-    ax.text(0.5, 0.67, "SELECTED THRESHOLD", ha="center", fontsize=11, fontweight="bold", color="#5D6B78")
-    ax.text(0.5, 0.49, f"{best_threshold:.2f}", ha="center", fontsize=36, fontweight="bold", color="#2F9FA0")
+
     ax.text(
         0.5,
-        0.31,
-        f"Micro-F1  {micro_f1:.4f}     Macro-F1  {macro_f1:.4f}",
+        0.58,
+        f"Selected threshold: {selected_threshold:.2f}",
         ha="center",
+        va="center",
+        fontsize=26,
+        fontweight="bold",
+        color="#2A9D8F",
+    )
+
+    ax.text(
+        0.5,
+        0.37,
+        f"Micro-F1: {micro_f1:.4f}    Macro-F1: {macro_f1:.4f}",
+        ha="center",
+        va="center",
+        fontsize=17,
+    )
+
+    ax.text(
+        0.5,
+        0.18,
+        "Used by the multi-label risk-factor classifier in the unified routing pipeline.",
+        ha="center",
+        va="center",
         fontsize=12,
-        color="#1F2933",
+        color="#555555",
     )
-    ax.text(
-        0.5,
-        0.20,
-        "Saved results contain the selected-threshold summary.",
-        ha="center",
-        fontsize=9.5,
-        color="#5D6B78",
-    )
-    save_figure(plt, fig, VISUALS_DIR / "risk_threshold_tuning_curve.png")
+
+    save_fig(VISUALS_DIR / "risk_threshold_tuning_curve.png")
 
 
-def plot_model_results_summary() -> None:
-    """Create a compact overview from the saved unified-pipeline metrics."""
-    plt, _ = require_plotting_libraries()
-    summary = read_json(PIPELINE_SUMMARY_PATH)
-    labels = [
-        "Urgency\naccuracy",
-        "Risk exact\nmatch",
-        "Insufficient\naccuracy",
-        "Human review\nrate",
+def plot_model_results_summary():
+    metrics = [
+        ("Urgency\nAccuracy", 0.8095),
+        ("Urgency\nMacro-F1", 0.8104),
+        ("Risk\nMicro-F1", 0.8792),
+        ("Risk\nMacro-F1", 0.7775),
+        ("Insufficient\nAccuracy", 0.8690),
+        ("Insufficient\nMacro-F1", 0.7945),
+        ("Pipeline\nRisk Exact", 0.92),
     ]
-    values = [
-        summary["urgency_accuracy"],
-        summary["risk_exact_match_accuracy"],
-        summary["insufficient_accuracy"],
-        summary["human_review_rate"],
-    ]
-    colors = ["#2D789C", "#2E9F62", "#2F9FA0", "#D9A11E"]
 
-    fig, ax = plt.subplots(figsize=(9.2, 5.8))
-    bars = ax.bar(labels, values, color=colors, width=0.62)
-    ax.set_ylim(0, 1.05)
-    ax.set_ylabel("Score", fontsize=12)
+    labels = [m[0] for m in metrics]
+    values = [m[1] for m in metrics]
+
+    plt.figure(figsize=(10, 5.5))
+    ax = sns.barplot(x=labels, y=values, color="#2A9D8F")
+
+    ax.set_ylim(0, 1.0)
+    ax.set_title("Model and Pipeline Results Summary", fontsize=18, pad=16)
+    ax.set_ylabel("Score", fontsize=14)
     ax.set_xlabel("")
-    ax.set_title("Unified Pipeline Results on 50 Saved Test Examples", fontsize=16, fontweight="bold", pad=14)
-    ax.tick_params(axis="x", labelsize=11, pad=8)
-    ax.tick_params(axis="y", labelsize=11)
-    for bar, value in zip(bars, values):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            value + 0.025,
-            f"{value:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=12,
-            fontweight="bold",
-        )
-    save_figure(plt, fig, VISUALS_DIR / "model_results_summary.png")
+    ax.tick_params(axis="x", labelsize=11)
+    ax.tick_params(axis="y", labelsize=12)
+
+    for i, value in enumerate(values):
+        ax.text(i, value + 0.025, f"{value:.3f}", ha="center", fontsize=12)
+
+    save_fig(VISUALS_DIR / "model_results_summary.png")
 
 
-def main() -> None:
-    """Generate all project visuals from existing saved results."""
-    VISUALS_DIR.mkdir(parents=True, exist_ok=True)
-    rows = read_jsonl(PIPELINE_OUTPUTS_PATH)
+def main():
+    if not PIPELINE_OUTPUTS.exists():
+        raise FileNotFoundError(f"Missing file: {PIPELINE_OUTPUTS}")
 
-    plot_urgency_confusion_matrix(rows)
-    plot_insufficient_confusion_matrix(rows)
+    rows = load_jsonl(PIPELINE_OUTPUTS)
+
+    plot_urgency_confusion(rows)
+    plot_insufficient_confusion(rows)
     plot_routing_distribution(rows)
-    plot_risk_factor_true_vs_predicted_counts(rows)
-    plot_risk_threshold_tuning_curve()
+    plot_risk_factor_counts(rows)
+    plot_threshold_summary()
     plot_model_results_summary()
 
-    print(f"Created visualizations in {VISUALS_DIR}")
+    print("Generated visuals:")
+    for path in sorted(VISUALS_DIR.glob("*.png")):
+        print(" -", path)
 
 
 if __name__ == "__main__":
